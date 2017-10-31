@@ -22,8 +22,18 @@ import           Protolude
 import           System.Environment         (lookupEnv)
 import Data.String (String)
 import           Manta.Types
-import           Network.HTTP.Types         (methodPut, statusCode)
+import           Network.HTTP.Types         (methodPut, statusCode, hContentType, hDate, hUserAgent)
 
+import qualified Paths_manta_client
+import Data.Version (showVersion)
+import qualified System.Info
+
+defUserAgent :: ByteString
+defUserAgent = strConv Strict $ "haskell-manta/" <>
+    showVersion Paths_manta_client.version <> " (" <>
+    System.Info.os <> " " <> System.Info.arch <>
+    ") " <> System.Info.compilerName <> "-" <>
+    showVersion System.Info.compilerVersion
 
 defEnv :: MonadIO m => m MantaEnv
 defEnv = do
@@ -51,8 +61,21 @@ _mkRequest path = do
     let url = msUrl state
         acct = msAccount state
         uri = url <> "/" <> acct <> "/" <>  strConv Strict path
-    liftIO $ parseRequest (strConv Strict uri)
+    req <- liftIO $ parseRequest (strConv Strict uri)
+    let req' = req {requestHeaders=[
+          (hDate, "")
+        , (hUserAgent, defUserAgent)
+        ]}
+    return req'
+{-
+headers: {
+    'accept-encoding': 'gzip, deflate',
+    'authorization': 'Signature keyId="/greenspun/keys/18:aa:10:bb:5b:b0:4d:7f:b8:7a:1c:73:8e:05:16:6f",algorithm="rsa-sha1",signature="N0TM6xeVzviUk0GNyA/nVt6/11ZpXYBN7uY6XURSknCQRLbg4+BY9xlyK19aAk71hOQ63Y81wgd+CTa3xIKO2QbyF/ILST5T9/STeq76nTvweAK1cXb4v3r6yK315XFg/B9R8qHNQuomrXDfvYVVH8IuzNrmyzxYDoVydT8jv1w+IqIEmeJIKLSiDHKv50Bd6Zi3JIHKRGLlki4wwQYn0DBSFXxozf2e4H/gF2P/eC4m8zyS7GUcLU4T3aeYj8g9yVXdGd3EiV6GTKrBD2eTf8VkPBHaELPFwWHOiukw7k/XWmSOVLm4Sl4HsPPxWR4VRtwBe4WKiUBngm4/DzJqSg=="',
+    'date': 'Tue, 31 Oct 2017 16:27:03 GMT',
+    'user-agent': 'python-manta/2.6.0 (linux2) Python/2.7.3'
+}
 
+-}
 _performRequest :: (MonadIO m, MonadLogger m) => Request -> MantaClientT m (Response LByteString)
 _performRequest req = do
     state <- ask
@@ -103,7 +126,7 @@ putDirectory :: (MonadIO m, MonadLogger m) => FilePath -> MantaClientT m Bool
 putDirectory path = do
     req <- _mkRequest path
     let req' = req {
-          requestHeaders=[("Content-Type", "application/json; type=directory")]
+          requestHeaders=[(hContentType, "application/json; type=directory")]
         , method=methodPut}
     resp <- _performRequest req'
     return $ (statusCode . responseStatus $ resp) == 204

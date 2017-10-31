@@ -11,6 +11,8 @@ extra-source-files:
 library:
   source-dirs: src
   exposed-modules:
+  other-modules:
+  - Paths_manta_client
   dependencies:
   - base >=4.7 && <5
   - aeson

@@ -2,18 +2,18 @@
 --
 -- see: https://github.com/sol/hpack
 
-name:                manta-client
-version:             0.1.0.0
-homepage:            https://github.com/kitdallege/haskell-manta#readme
-bug-reports:         https://github.com/kitdallege/haskell-manta/issues
-license:             BSD3
-license-file:        LICENSE
-author:              Kit Dallege
-maintainer:          kitdallege@gmail.com
-copyright:           Copyright: (c) 2016 Kit Dallege
-category:            Web
-build-type:          Simple
-cabal-version:       >= 1.10
+name:           manta-client
+version:        0.1.0.0
+category:       Web
+homepage:       https://github.com/kitdallege/haskell-manta#readme
+bug-reports:    https://github.com/kitdallege/haskell-manta/issues
+author:         Kit Dallege
+maintainer:     kitdallege@gmail.com
+copyright:      Copyright: (c) 2016 Kit Dallege
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
 
 extra-source-files:
     README.md
@@ -25,11 +25,6 @@ source-repository head
 library
   hs-source-dirs:
       src
-  exposed-modules:
-      Manta
-      Manta.API
-      Manta.Auth
-      Manta.Types
   build-depends:
       base >=4.7 && <5
     , aeson
@@ -48,12 +43,19 @@ library
     , RSA
     , text
     , transformers
+  exposed-modules:
+      Manta
+      Manta.API
+      Manta.Auth
+      Manta.Types
+  other-modules:
+      Paths_manta_client
   default-language: Haskell2010
 
 executable manta-client-exe
+  main-is: Main.hs
   hs-source-dirs:
       app
-  main-is: Main.hs
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
@@ -63,11 +65,11 @@ executable manta-client-exe
 
 test-suite manta-client-test
   type: exitcode-stdio-1.0
+  main-is: Spec.hs
   hs-source-dirs:
       test
-  main-is: Spec.hs
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
     , manta-client
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   default-language: Haskell2010
