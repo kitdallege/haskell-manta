@@ -2,8 +2,9 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
 module Manta.Types
   ( MantaClientT
   , runMantaClientT
@@ -12,18 +13,20 @@ module Manta.Types
   , runMantaClientNoLogging
   , MantaEnv(..)
   , FileMetadata(..)
+  , MantaAPIError(..)
   , Signer
   ) where
-import Protolude
 import           Control.Monad.Logger        (LoggingT, MonadLogger,
-                                              NoLoggingT (..),
-                                              runStderrLoggingT, runStdoutLoggingT, runLoggingT)
+                                              NoLoggingT (..), runLoggingT,
+                                              runStderrLoggingT,
+                                              runStdoutLoggingT)
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Data.Aeson                  (FromJSON (..), Value (..), (.:),
-                                              (.:?))
-import           Network.HTTP.Client         (Manager)
+                                              (.:?), withObject)
 import qualified GHC.Show
+import           Network.HTTP.Client         (Manager)
+import           Protolude
 
 newtype MantaClientT m a = MantaClientT {
   unMantaClientT :: ReaderT MantaEnv m a
@@ -76,3 +79,100 @@ instance FromJSON FileMetadata where
 
 
 type Signer = Text -> Bool
+
+data MantaAPIError
+    = AuthSchemeError Text
+    | AuthorizationError Text
+    | BadRequestError Text
+    | ChecksumError Text
+    | ConcurrentRequestError Text
+    | ContentLengthError Text
+    | ContentMD5MismatchError Text
+    | EntityExistsError Text
+    | InvalidArgumentError Text
+    | InvalidAuthTokenError Text
+    | InvalidCredentialsError Text
+    | InvalidDurabilityLevelError Text
+    | InvalidKeyIdError Text
+    | InvalidJobError Text
+    | InvalidLinkError Text
+    | InvalidLimitError Text
+    | InvalidSignatureError Text
+    | InvalidUpdateError Text
+    | DirectoryDoesNotExistError Text
+    | DirectoryExistsError Text
+    | DirectoryNotEmptyError Text
+    | DirectoryOperationError Text
+    | InternalError Text
+    | JobNotFoundError Text
+    | JobStateError Text
+    | KeyDoesNotExistError Text
+    | NotAcceptableError Text
+    | NotEnoughSpaceError Text
+    | LinkNotFoundError Text
+    | LinkNotObjectError Text
+    | LinkRequiredError Text
+    | ParentNotDirectoryError Text
+    | PreconditionFailedError Text
+    | PreSignedRequestError Text
+    | RequestEntityTooLargeError Text
+    | ResourceNotFoundError Text
+    | RootDirectoryError Text
+    | ServiceUnavailableError Text
+    | SSLRequiredError Text
+    | UploadTimeoutError Text
+    | UserDoesNotExistError Text
+    | OtherMantaError Text
+    deriving (Show, Eq, Typeable)
+
+instance Exception MantaAPIError
+
+instance FromJSON MantaAPIError where
+    parseJSON = withObject "MantaAPIError" $ \o -> do
+        code <- o .: "code"
+        message <- o .: "message"
+        return $ codeToErr code message
+      where
+          codeToErr code = case (code :: Text) of
+              "AuthScheme" -> AuthSchemeError
+              "Authorization" -> AuthorizationError
+              "BadRequest" -> BadRequestError
+              "Checksum" -> ChecksumError
+              "ConcurrentRequest" -> ConcurrentRequestError
+              "ContentLength" -> ContentLengthError
+              "ContentMD5Mismatch" -> ContentMD5MismatchError
+              "EntityExists" -> EntityExistsError
+              "InvalidArgument" -> InvalidArgumentError
+              "InvalidAuthToken" -> InvalidAuthTokenError
+              "InvalidCredentials" -> InvalidCredentialsError
+              "InvalidDurabilityLevel" -> InvalidDurabilityLevelError
+              "InvalidKeyId" -> InvalidKeyIdError
+              "InvalidJob" -> InvalidJobError
+              "InvalidLink" -> InvalidLinkError
+              "InvalidLimit" -> InvalidLimitError
+              "InvalidSignature" -> InvalidSignatureError
+              "InvalidUpdate" -> InvalidUpdateError
+              "DirectoryDoesNotExist" -> DirectoryDoesNotExistError
+              "DirectoryExists" -> DirectoryExistsError
+              "DirectoryNotEmpty" -> DirectoryNotEmptyError
+              "DirectoryOperation" -> DirectoryOperationError
+              "Internal" -> InternalError
+              "JobNotFound" -> JobNotFoundError
+              "JobState" -> JobStateError
+              "KeyDoesNotExist" -> KeyDoesNotExistError
+              "NotAcceptable" -> NotAcceptableError
+              "NotEnoughSpace" -> NotEnoughSpaceError
+              "LinkNotFound" -> LinkNotFoundError
+              "LinkNotObject" -> LinkNotObjectError
+              "LinkRequired" -> LinkRequiredError
+              "ParentNotDirectory" -> ParentNotDirectoryError
+              "PreconditionFailed" -> PreconditionFailedError
+              "PreSignedRequest" -> PreSignedRequestError
+              "RequestEntityTooLarge" -> RequestEntityTooLargeError
+              "ResourceNotFound" -> ResourceNotFoundError
+              "RootDirectory" -> RootDirectoryError
+              "ServiceUnavailable" -> ServiceUnavailableError
+              "SSLRequired" -> SSLRequiredError
+              "UploadTimeout" -> UploadTimeoutError
+              "UserDoesNotExist" -> UserDoesNotExistError
+              _ -> OtherMantaError

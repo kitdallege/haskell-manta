@@ -37,6 +37,7 @@ library
     , case-insensitive
     , crypto-pubkey-types
     , crypto-pubkey-openssh
+    , exceptions
     , http-client
     , http-client-tls
     , http-types

@@ -1,11 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Manta.Auth
   ( privateKeySigner
   , loadKey
   ) where
-import Protolude
-import Data.Semigroup ((<>))
+import           Data.Semigroup          ((<>))
+import           Protolude
 --import Manta.Types (Signer)
 import           Codec.Crypto.RSA        (sign)
 import           Control.Monad.IO.Class  (MonadIO, liftIO)
@@ -38,8 +38,8 @@ import Data.ByteString (ByteString)
 
 throwLeft :: IsString s => Either s OpenSshPrivateKey -> Either Text PrivateKey
 throwLeft (Right (OpenSshPrivateKeyRsa k)) = Right k
-throwLeft (Right _) = Left "Wrong key type"
-throwLeft (Left s)  = Left "Error reading keys: "
+throwLeft (Right _)                        = Left "Wrong key type"
+throwLeft (Left s)                         = Left "Error reading keys: "
 
 --readAndSign :: FilePath -> ByteString -> IO ByteString
 --readAndSign file msg = (flip sign msg . throwLeft . decodePrivate) `fmap` readFile file

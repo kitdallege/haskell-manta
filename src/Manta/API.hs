@@ -10,18 +10,19 @@ module Manta.API
   , getFileRaw
   , putDirectory
   ) where
+import           Control.Monad.Catch        (MonadThrow, throwM)
 import           Control.Monad.Logger       (MonadLogger, logDebug)
-import           Data.Aeson                 (decode)
+import           Data.Aeson                 (decode, Value, eitherDecode')
 import           Data.ByteString.Lazy.Char8 (lines)
 import           Data.List                  (lookup)
-import           Network.HTTP.Client        (Response(..), httpLbs, newManager,
-                                             parseRequest, Request(..))
+import           Network.HTTP.Client        (Request (..), Response (..),
+                                             httpLbs, newManager, parseRequest)
 import           Network.HTTP.Client.TLS    (tlsManagerSettings)
 import           Protolude
 import           System.Environment         (lookupEnv)
-
+import Data.String (String)
 import           Manta.Types
-import           Network.HTTP.Types (statusCode, methodPut)
+import           Network.HTTP.Types         (methodPut, statusCode)
 
 
 defEnv :: MonadIO m => m MantaEnv
@@ -58,25 +59,31 @@ _performRequest req = do
     $(logDebug) (show req)
     resp <- liftIO $ httpLbs req (msManager state)
     let headers = responseHeaders resp
-    $(logDebug) (show headers)
+    $(logDebug) (show resp)
     return resp
 
 _request :: (MonadIO m, MonadLogger m) => FilePath -> MantaClientT m (Response LByteString)
 _request path = _mkRequest path >>= _performRequest
 
-data RequestArgs = RequestArgs
-    {
 
-    } deriving (Show)
 -- For each 'api method' there is a Raw version which returns the Response
 -- this is for 'power users' whom need/want access to the Http headers.
-listDirectoryRaw :: (MonadIO m, MonadLogger m) => FilePath -> MantaClientT m (Response LByteString, [FileMetadata])
+listDirectoryRaw :: (MonadIO m, MonadThrow m, MonadLogger m) => FilePath -> MantaClientT m (Response LByteString, [FileMetadata])
 listDirectoryRaw path = do
-  $(logDebug) ("List Diretory: " <> show path)
-  resp <- _request path
-  return (resp, catMaybes . mapMaybe decode . lines $ responseBody resp)
+    $(logDebug) ("List Diretory: " <> show path)
+    resp <- _request path
+    statusCheck resp
+    return (resp, catMaybes . mapMaybe decode . lines $ responseBody resp)
+  where
+      statusCheck resp = unless ((statusCode . responseStatus $ resp) == 200) (throwManta resp)
+      throwManta resp = do
+          let merror = decode $ responseBody resp :: Maybe MantaAPIError
+          case merror of
+              Nothing -> liftIO $ throwM $ OtherMantaError ("Response code of " <> show (statusCode . responseStatus $ resp) <> " body is not JSON parseable: " <> strConv Strict (responseBody resp))
+              Just err -> liftIO $ throwM err
 
-listDirectory :: (MonadIO m, MonadLogger m) => FilePath -> MantaClientT m [FileMetadata]
+
+listDirectory :: (MonadIO m, MonadThrow m, MonadLogger m) => FilePath -> MantaClientT m [FileMetadata]
 listDirectory path = do
   (_, results) <- listDirectoryRaw path
   return results
@@ -95,7 +102,9 @@ getFile path = do
 putDirectory :: (MonadIO m, MonadLogger m) => FilePath -> MantaClientT m Bool
 putDirectory path = do
     req <- _mkRequest path
-    let req' = req {requestHeaders=[("Content-Type", "application/json; type=directory")], method=methodPut}
+    let req' = req {
+          requestHeaders=[("Content-Type", "application/json; type=directory")]
+        , method=methodPut}
     resp <- _performRequest req'
     return $ (statusCode . responseStatus $ resp) == 204
 {-

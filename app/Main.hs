@@ -1,9 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Main where
-import Protolude
 import           Control.Monad.IO.Class (liftIO)
 import           Manta
+import           Protolude
 
 main :: IO ()
 main = do
@@ -26,4 +26,5 @@ main = do
         liftIO $ do
             print "putDirectory returned"
             print success
+        void $ listDirectory "publicz/"
     return ()
