@@ -1,0 +1,53 @@
+name: manta-client
+version: '0.1.0.0'
+category: Web
+author: Kit Dallege
+maintainer: kitdallege@gmail.com
+copyright: ! 'Copyright: (c) 2016 Kit Dallege'
+license: BSD3
+github: kitdallege/haskell-manta
+extra-source-files:
+- README.md
+library:
+  source-dirs: src
+  exposed-modules:
+  dependencies:
+  - base >=4.7 && <5
+  - aeson
+  - bytestring
+  - case-insensitive
+  - crypto-pubkey-types
+  - crypto-pubkey-openssh
+  - http-client
+  - http-client-tls
+  - http-types
+  - monad-control
+  - monad-logger
+  - mtl
+  - protolude
+  - RSA
+  - text
+  - transformers
+executables:
+  manta-client-exe:
+    main: Main.hs
+    source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - manta-client
+    - protolude
+tests:
+  manta-client-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - manta-client
