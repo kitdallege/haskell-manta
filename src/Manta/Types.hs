@@ -140,6 +140,7 @@ data MantaAPIError
     | JobNotFoundError Text
     | JobStateError Text
     | KeyDoesNotExistError Text
+    | NoApiServersAvailableError Text
     | NotAcceptableError Text
     | NotEnoughSpaceError Text
     | LinkNotFoundError Text
@@ -195,6 +196,7 @@ instance FromJSON MantaAPIError where
               "JobNotFound"            -> JobNotFoundError
               "JobState"               -> JobStateError
               "KeyDoesNotExist"        -> KeyDoesNotExistError
+              "NoApiServersAvailable"  -> NoApiServersAvailableError
               "NotAcceptable"          -> NotAcceptableError
               "NotEnoughSpace"         -> NotEnoughSpaceError
               "LinkNotFound"           -> LinkNotFoundError

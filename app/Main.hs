@@ -14,18 +14,25 @@ main = do
     print env
     runMantaClientStdoutLogging env $ do
         showConfig
-        ls <- listDirectory "public"
-        liftIO $ do
-            print ("List Directory" :: Text)
-            mapM_ print ls
         -- contents <- getFile "public/dead.letter"
         -- liftIO $ do
         --     print ("Contents of \"public/dead.letter\"" :: Text)
         --     print contents
-        liftIO $ print ("Creating directory" :: Text)
-        _ <- putDirectory "public/test2" `catch` (\e -> do
-                                                        let err = (show (e :: MantaAPIError)) :: Text
-                                                        putStr err
-                                                        return ())
+        -- liftIO $ print ("Creating directory" :: Text)
+        -- _ <- putDirectory "public/test2" `catch` (\e -> do
+        --                                                 let err = show (e :: MantaAPIError) :: Text
+        --                                                 putStr err
+        --                                                 return ())
         liftIO $ print ("Created directory" :: Text)
+        liftIO $ print ("Putting a file." :: Text)
+        _ <- putFile "/tmp/test.txt" "public/test2/test.txt"
+        ls <- listDirectory "public"
+        liftIO $ do
+            print ("List Directory" :: Text)
+            mapM_ print ls
+        contents <- getFile "public/test2/test.txt"
+        liftIO $ do
+            print ("Contents of \"public/test2/test.txt\"" :: Text)
+            print contents
+        return ()
     return ()

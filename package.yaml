@@ -21,18 +21,22 @@ library:
   - case-insensitive
   - crypto-pubkey-types
   - crypto-pubkey-openssh
+  - pureMD5
   - exceptions
+  - filepath
   - http-client
   - http-client-tls
   - http-types
   - monad-control
   - monad-logger
+  - mime-types
   - mtl
   - protolude
   - RSA
   - text
   - time
   - transformers
+  - unix
   ghc-options:
   - -Wall
 executables:
