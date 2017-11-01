@@ -22,6 +22,7 @@ import           Control.Monad.Logger        (LoggingT, MonadLogger,
                                               NoLoggingT (..),
                                               runStderrLoggingT,
                                               runStdoutLoggingT)
+import           Control.Monad.Catch        (MonadThrow, MonadCatch)
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Data.Aeson                  (FromJSON (..), Value (..),
@@ -39,7 +40,9 @@ newtype MantaClientT m a = MantaClientT {
            , MonadIO
            , MonadTrans
            , MonadReader MantaEnv
-           , MonadLogger)
+           , MonadLogger
+           , MonadThrow
+           , MonadCatch)
 
 runMantaClientT :: (MonadIO m, MonadLogger m, MonadBaseControl IO m) => MantaEnv -> MantaClientT m a -> m a
 runMantaClientT conf action = runReaderT (unMantaClientT action) conf

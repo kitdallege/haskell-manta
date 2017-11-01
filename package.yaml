@@ -46,6 +46,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - base
+    - exceptions
     - manta-client
     - protolude
 tests:

@@ -10,7 +10,7 @@ module Manta.API
   , getFileRaw
   , putDirectory
   ) where
-import           Control.Monad.Catch        (MonadThrow, throwM)
+import           Control.Monad.Catch        (MonadThrow, throwM, MonadCatch)
 import           Control.Monad.Logger       (MonadLogger, logDebug)
 import           Data.Aeson                 (decode)
 import           Data.ByteString.Lazy.Char8 (lines)
@@ -132,7 +132,7 @@ getFile path = do
   (_, results) <- getFileRaw path
   return results
 
-putDirectory :: (MonadIO m, MonadLogger m) => FilePath -> MantaClientT m Bool
+putDirectory :: (MonadIO m, MonadCatch m, MonadLogger m) => FilePath -> MantaClientT m ()
 putDirectory path = do
     req <- _mkRequest path
     let req' = addHeaders
@@ -140,8 +140,8 @@ putDirectory path = do
                 [(HT.hContentType, "application/json; type=directory")]
     resp <- _performRequest req'
     statusCheck resp
-    return $ (HT.statusCode . HC.responseStatus $ resp) == 204
   where
+      statusCheck :: MonadIO f => HC.Response LByteString -> f ()
       statusCheck resp = unless ((HT.statusCode . HC.responseStatus $ resp) == 204) (throwManta resp)
       throwManta resp = do
           let merror = decode $ HC.responseBody resp :: Maybe MantaAPIError

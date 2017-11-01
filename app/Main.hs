@@ -2,8 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Catch (catch)
 import           Manta
-import           Protolude
+import           Protolude hiding (catch)
 
 
 main :: IO ()
@@ -21,10 +22,10 @@ main = do
         -- liftIO $ do
         --     print ("Contents of \"public/dead.letter\"" :: Text)
         --     print contents
-        -- liftIO $ print ("Creating directory" :: Text)
-        -- success <- putDirectory "public/test2"
-        -- liftIO $ do
-        --     print ("putDirectory returned" :: Text)
-        --     print success
-        -- void $ listDirectory "publicz/"
+        liftIO $ print ("Creating directory" :: Text)
+        _ <- putDirectory "public/test2" `catch` (\e -> do
+                                                        let err = (show (e :: MantaAPIError)) :: Text
+                                                        putStr err
+                                                        return ())
+        liftIO $ print ("Created directory" :: Text)
     return ()
