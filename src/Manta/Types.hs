@@ -1,10 +1,11 @@
+{-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE DeriveDataTypeable         #-}
+
 module Manta.Types
   ( MantaClientT
   , runMantaClientT
@@ -14,16 +15,17 @@ module Manta.Types
   , MantaEnv(..)
   , FileMetadata(..)
   , MantaAPIError(..)
-  , Signer
+  , MantaSigner (..)
+  , MantaSignerType (..)
   ) where
 import           Control.Monad.Logger        (LoggingT, MonadLogger,
-                                              NoLoggingT (..), runLoggingT,
+                                              NoLoggingT (..),
                                               runStderrLoggingT,
                                               runStdoutLoggingT)
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Control.Monad.Trans.Control (MonadBaseControl)
-import           Data.Aeson                  (FromJSON (..), Value (..), (.:),
-                                              (.:?), withObject)
+import           Data.Aeson                  (FromJSON (..), Value (..),
+                                              withObject, (.:), (.:?))
 import qualified GHC.Show
 import           Network.HTTP.Client         (Manager)
 import           Protolude
@@ -56,7 +58,7 @@ data MantaEnv = MantaEnv
   , msAccount :: !Text
   , msKey     :: !Text
   , msManager :: Manager
-  , msSigner  :: Signer
+  , msSigner  :: MantaSigner
   }
 
 instance Show MantaEnv where
@@ -78,7 +80,35 @@ instance FromJSON FileMetadata where
   parseJSON _          = mzero
 
 
-type Signer = Text -> Bool
+data MantaSignerType =
+    MantaSignerTypePrivate
+  | MantaSignerTypeAgent
+
+data MantaSigner = MantaSigner
+    { mantaSignerType           :: MantaSignerType
+    , mantaSignerAlgorithm      :: Text -- RSA.HashInfo
+    , mantaSignerFingerprint    :: Text
+    , mantaSignerSigner         :: ByteString -> ByteString
+    }
+
+
+-- data PrivateKeySigner = PrivateKeySigner
+--     { privateKeySignerAlgorithm   :: Text -- RSA.HashInfo
+--     , privateKeySignerFingerprint :: Text
+--     , privateKeySignerSigner      :: ByteString -> ByteString
+--     }
+--
+-- instance MantaSigner PrivateKeySigner where
+--     sign = privateKeySignerSigner
+--     fingerprint = privateKeySignerFingerprint
+--
+-- data AgentKeySigner = AgentKeySigner
+--     { agentKeySignerAlgorithm   :: Text -- RSA.HashInfo
+--     , agentKeySignerFingerprint :: Text
+--     , agentKeySignerSigner      :: ByteString -> ByteString
+--     }
+--
+-- type Signer = Text -> Bool
 
 data MantaAPIError
     = AuthSchemeError Text
@@ -116,6 +146,7 @@ data MantaAPIError
     | PreconditionFailedError Text
     | PreSignedRequestError Text
     | RequestEntityTooLargeError Text
+    | RequestExpiredError Text
     | ResourceNotFoundError Text
     | RootDirectoryError Text
     | ServiceUnavailableError Text
@@ -134,45 +165,47 @@ instance FromJSON MantaAPIError where
         return $ codeToErr code message
       where
           codeToErr code = case (code :: Text) of
-              "AuthScheme" -> AuthSchemeError
-              "Authorization" -> AuthorizationError
-              "BadRequest" -> BadRequestError
-              "Checksum" -> ChecksumError
-              "ConcurrentRequest" -> ConcurrentRequestError
-              "ContentLength" -> ContentLengthError
-              "ContentMD5Mismatch" -> ContentMD5MismatchError
-              "EntityExists" -> EntityExistsError
-              "InvalidArgument" -> InvalidArgumentError
-              "InvalidAuthToken" -> InvalidAuthTokenError
-              "InvalidCredentials" -> InvalidCredentialsError
+              "AuthScheme"             -> AuthSchemeError
+              "Authorization"          -> AuthorizationError
+              "AuthorizationFailed"    -> AuthorizationError
+              "BadRequest"             -> BadRequestError
+              "Checksum"               -> ChecksumError
+              "ConcurrentRequest"      -> ConcurrentRequestError
+              "ContentLength"          -> ContentLengthError
+              "ContentMD5Mismatch"     -> ContentMD5MismatchError
+              "EntityExists"           -> EntityExistsError
+              "InvalidArgument"        -> InvalidArgumentError
+              "InvalidAuthToken"       -> InvalidAuthTokenError
+              "InvalidCredentials"     -> InvalidCredentialsError
               "InvalidDurabilityLevel" -> InvalidDurabilityLevelError
-              "InvalidKeyId" -> InvalidKeyIdError
-              "InvalidJob" -> InvalidJobError
-              "InvalidLink" -> InvalidLinkError
-              "InvalidLimit" -> InvalidLimitError
-              "InvalidSignature" -> InvalidSignatureError
-              "InvalidUpdate" -> InvalidUpdateError
-              "DirectoryDoesNotExist" -> DirectoryDoesNotExistError
-              "DirectoryExists" -> DirectoryExistsError
-              "DirectoryNotEmpty" -> DirectoryNotEmptyError
-              "DirectoryOperation" -> DirectoryOperationError
-              "Internal" -> InternalError
-              "JobNotFound" -> JobNotFoundError
-              "JobState" -> JobStateError
-              "KeyDoesNotExist" -> KeyDoesNotExistError
-              "NotAcceptable" -> NotAcceptableError
-              "NotEnoughSpace" -> NotEnoughSpaceError
-              "LinkNotFound" -> LinkNotFoundError
-              "LinkNotObject" -> LinkNotObjectError
-              "LinkRequired" -> LinkRequiredError
-              "ParentNotDirectory" -> ParentNotDirectoryError
-              "PreconditionFailed" -> PreconditionFailedError
-              "PreSignedRequest" -> PreSignedRequestError
-              "RequestEntityTooLarge" -> RequestEntityTooLargeError
-              "ResourceNotFound" -> ResourceNotFoundError
-              "RootDirectory" -> RootDirectoryError
-              "ServiceUnavailable" -> ServiceUnavailableError
-              "SSLRequired" -> SSLRequiredError
-              "UploadTimeout" -> UploadTimeoutError
-              "UserDoesNotExist" -> UserDoesNotExistError
-              _ -> OtherMantaError
+              "InvalidKeyId"           -> InvalidKeyIdError
+              "InvalidJob"             -> InvalidJobError
+              "InvalidLink"            -> InvalidLinkError
+              "InvalidLimit"           -> InvalidLimitError
+              "InvalidSignature"       -> InvalidSignatureError
+              "InvalidUpdate"          -> InvalidUpdateError
+              "DirectoryDoesNotExist"  -> DirectoryDoesNotExistError
+              "DirectoryExists"        -> DirectoryExistsError
+              "DirectoryNotEmpty"      -> DirectoryNotEmptyError
+              "DirectoryOperation"     -> DirectoryOperationError
+              "Internal"               -> InternalError
+              "JobNotFound"            -> JobNotFoundError
+              "JobState"               -> JobStateError
+              "KeyDoesNotExist"        -> KeyDoesNotExistError
+              "NotAcceptable"          -> NotAcceptableError
+              "NotEnoughSpace"         -> NotEnoughSpaceError
+              "LinkNotFound"           -> LinkNotFoundError
+              "LinkNotObject"          -> LinkNotObjectError
+              "LinkRequired"           -> LinkRequiredError
+              "ParentNotDirectory"     -> ParentNotDirectoryError
+              "PreconditionFailed"     -> PreconditionFailedError
+              "PreSignedRequest"       -> PreSignedRequestError
+              "RequestEntityTooLarge"  -> RequestEntityTooLargeError
+              "RequestExpired"         -> RequestExpiredError
+              "ResourceNotFound"       -> ResourceNotFoundError
+              "RootDirectory"          -> RootDirectoryError
+              "ServiceUnavailable"     -> ServiceUnavailableError
+              "SSLRequired"            -> SSLRequiredError
+              "UploadTimeout"          -> UploadTimeoutError
+              "UserDoesNotExist"       -> UserDoesNotExistError
+              _                        -> OtherMantaError

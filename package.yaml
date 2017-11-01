@@ -16,6 +16,7 @@ library:
   dependencies:
   - base >=4.7 && <5
   - aeson
+  - base64-bytestring
   - bytestring
   - case-insensitive
   - crypto-pubkey-types
@@ -30,12 +31,16 @@ library:
   - protolude
   - RSA
   - text
+  - time
   - transformers
+  ghc-options:
+  - -Wall
 executables:
   manta-client-exe:
     main: Main.hs
     source-dirs: app
     ghc-options:
+    - -Wall
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N

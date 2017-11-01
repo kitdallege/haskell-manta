@@ -3,29 +3,47 @@
 module Manta.Auth
   ( privateKeySigner
   , loadKey
+  , mkPrivateKeySigner
   ) where
-import           Data.Semigroup          ((<>))
 import           Protolude
 --import Manta.Types (Signer)
-import           Codec.Crypto.RSA        (sign)
+import qualified Codec.Crypto.RSA as RSA
 import           Control.Monad.IO.Class  (MonadIO, liftIO)
-import           Crypto.PubKey.OpenSsh   (OpenSshPrivateKey (..), decodePrivate)
-import           Crypto.Types.PubKey.RSA (PrivateKey)
+import           Crypto.PubKey.OpenSsh   (OpenSshPrivateKey (..), decodePrivate
+                                         , OpenSshPublicKey (..), decodePublic)
+import           Crypto.Types.PubKey.RSA (PrivateKey, PublicKey, KeyPair)
 -- import           Data.ByteString         (ByteString, readFile)
 import           System.Environment      (getEnv)
--- import           Data.Text                   (Text)
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Base64.Lazy as BSL64
+import Data.String (String)
+import Manta.Types
+
+mkPrivateKeySigner :: Text -> IO MantaSigner
+mkPrivateKeySigner fingerprint = do
+    dir <- (++ "/.ssh/") <$> getEnv "HOME"
+    Right key <- loadKey (dir ++ "id_rsa")
+    let pkSigner = BSL.toStrict . BSL64.encode . RSA.rsassa_pkcs1_v1_5_sign RSA.hashSHA256 key . BSL.fromStrict
+    return $ MantaSigner
+        { mantaSignerType           = MantaSignerTypePrivate
+        , mantaSignerAlgorithm      = "rsa-sha256"
+        , mantaSignerFingerprint    = fingerprint
+        , mantaSignerSigner         = pkSigner
+        }
 
 signer :: Text -> Bool
 signer key = ans
   where ans = True
 
 privateKeySigner :: (MonadIO m) => Text -> m Bool
-privateKeySigner key  = do
+privateKeySigner fingerprint  = do
   liftIO $ do
     dir <- (++ "/.ssh/") <$> getEnv "HOME"
-    key' <- loadKey (dir ++ "id_rsa")
+    Right key <- loadKey (dir ++ "id_rsa")
+    let output = RSA.rsassa_pkcs1_v1_5_sign RSA.hashSHA1 key ""
     print ("creating signature for: " ++ dir)
-    print key'
+    print output
+    print key
   return True
 
 {-
@@ -36,13 +54,15 @@ import Data.ByteString (ByteString)
 
 -}
 
-throwLeft :: IsString s => Either s OpenSshPrivateKey -> Either Text PrivateKey
+throwLeft :: Either String OpenSshPrivateKey -> Either Text PrivateKey
 throwLeft (Right (OpenSshPrivateKeyRsa k)) = Right k
 throwLeft (Right _)                        = Left "Wrong key type"
-throwLeft (Left s)                         = Left "Error reading keys: "
+throwLeft (Left s)                         = Left $ "Error reading keys: " <> strConv Strict s
 
 --readAndSign :: FilePath -> ByteString -> IO ByteString
 --readAndSign file msg = (flip sign msg . throwLeft . decodePrivate) `fmap` readFile file
+
+
 
 loadKey :: FilePath -> IO (Either Text PrivateKey)
 loadKey p = (throwLeft . decodePrivate  . encodeUtf8) <$> readFile p
