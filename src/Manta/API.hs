@@ -11,16 +11,20 @@ module Manta.API
   , getFile
   , getFileRaw
   , putFile
+  -- *Debugging
+  , logHttpConnection
   ) where
 import           Control.Monad.Catch        (MonadThrow, throwM, MonadCatch)
 import           Control.Monad.Logger       (MonadLogger, logDebug)
 import           Data.Aeson                 (decode)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Base64.Lazy as BSL64
 import           Data.ByteString.Lazy.Char8 (lines)
 import qualified Network.Mime as Mime
 import qualified Network.HTTP.Types as HT
 import qualified Network.HTTP.Client as HC
+import Network.HTTP.Client.Internal (connectionWrite, mTlsConnection)
 import           Network.HTTP.Client.TLS    (tlsManagerSettings)
 import           Protolude
 import           System.Environment         (lookupEnv)
@@ -29,7 +33,7 @@ import           Manta.Auth
 import qualified Paths_manta_client
 import Data.Version (showVersion)
 import qualified System.Info
-import qualified System.Posix.Files as Files
+-- import qualified System.Posix.Files as Files
 import qualified System.FilePath.Posix as FilePath
 import qualified Data.Digest.Pure.MD5 as MD5
 import Data.Time.Clock (getCurrentTime)
@@ -44,7 +48,7 @@ defUserAgent = strConv Strict $ "haskell-manta/" <>
 
 defEnv :: MonadIO m => m MantaEnv
 defEnv = do
-  mgr <- liftIO $ HC.newManager tlsManagerSettings
+  mgr <-  liftIO $ HC.newManager tlsManagerSettings
   user <- liftIO $ lookupEnv "MANTA_USER"
   url <-  liftIO $ lookupEnv "MANTA_URL"
   key <-  liftIO $ lookupEnv "MANTA_KEY_ID"
@@ -56,6 +60,13 @@ defEnv = do
     , msManager = mgr
     , msSigner = defSigner
     }
+
+logHttpConnection :: HC.Manager -> HC.Manager
+logHttpConnection mgr = mgr {mTlsConnection = \ha h p -> do
+                connOrig <- mTlsConnection mgr ha h p
+                return connOrig {connectionWrite = \bs -> do
+                    BS.appendFile "/tmp/manta-client.log" bs
+                    connectionWrite connOrig bs}}
 
 showConfig :: MonadIO m => MantaClientT m ()
 showConfig = ask >>= liftIO . print
@@ -116,17 +127,16 @@ putFile localPath mantaPath  = do
     $(logDebug) ("PutObject: " <> show mantaPath)
     req <- _mkRequest mantaPath
     fileContents <- liftIO $ BSL.readFile localPath
-    fileStats <- liftIO $ Files.getFileStatus localPath
+    liftIO $ print fileContents
     let ctype = Mime.defaultMimeLookup (toS (FilePath.takeFileName localPath))
-        fsize = show (Files.fileSize fileStats)
-        checksum = BSL64.encode $ show (MD5.md5 fileContents)
+        checksum = BSL64.encode . toS . MD5.md5DigestBytes . MD5.md5 $ fileContents
         req'  =  req {HC.method=HT.methodPut
                     , HC.requestBody=HC.RequestBodyLBS fileContents}
         req'' = addHeaders req' [
               (HT.hContentType, ctype)
             , ("x-durability-level", "2")
-            , (HT.hContentLength, fsize)
-            , (HT.hContentMD5, toS checksum)]
+            , (HT.hContentMD5, toS checksum)
+            ]
     resp <- _performRequest req''
     checkStatus resp 204
     return ()
@@ -143,14 +153,16 @@ _mkRequest path = do
     req <- liftIO $ HC.parseRequest (strConv Strict uri)
     now <- liftIO $ do
         ct <- getCurrentTime
-        let fmtString = "%a, %d %b %Y %H:%M:%S %Z"
+        let fmtString = "%a, %d %b %Y %H:%M:%S GMT"
             -- "%a, %d %b %Y %H:%M:%S GMT" ? python hardcodes GMT
             fmtTime = formatTime defaultTimeLocale fmtString ct
         return $ strConv Strict fmtTime
     signRequest ("date: " <> now) $ req {HC.requestHeaders=[
           (HT.hDate, now)
         , (HT.hUserAgent, defUserAgent)
-        ]}
+        , (HT.hAccept, "*/*")
+        ],
+        HC.redirectCount=0}
 
 {-
 headers: {
@@ -166,6 +178,7 @@ _performRequest :: (MonadIO m, MonadLogger m) =>
 _performRequest req = do
     env <- ask
     $(logDebug) (show req)
+    liftIO $ mapM_ print (HC.requestHeaders req)
     resp <- liftIO $ HC.httpLbs req (msManager env)
     $(logDebug) (show resp)
     return resp
@@ -211,9 +224,11 @@ throwManta :: (MonadThrow m, MonadIO m) => HC.Response LByteString -> m a
 throwManta resp = do
     let merror = decode $ HC.responseBody resp :: Maybe MantaAPIError
     case merror of
-        Nothing -> liftIO $ throwM $ OtherMantaError (
-            "Response code of " <> show (HT.statusCode . HC.responseStatus $ resp) <>
-            " body is not JSON parseable: " <> strConv Strict (HC.responseBody resp))
+        Nothing -> liftIO $ do
+            putStr (HC.responseBody resp)
+            throwM $ OtherMantaError (
+                "Response code of " <> show (HT.statusCode . HC.responseStatus $ resp) <>
+                " body is not JSON parseable: " <> strConv Strict (HC.responseBody resp))
         Just err -> liftIO $ throwM err
 {-
 if self.signer:

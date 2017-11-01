@@ -13,7 +13,7 @@ main = do
     env <- defEnv
     print env
     runMantaClientStdoutLogging env $ do
-        showConfig
+        -- showConfig
         -- contents <- getFile "public/dead.letter"
         -- liftIO $ do
         --     print ("Contents of \"public/dead.letter\"" :: Text)
@@ -23,10 +23,14 @@ main = do
         --                                                 let err = show (e :: MantaAPIError) :: Text
         --                                                 putStr err
         --                                                 return ())
-        liftIO $ print ("Created directory" :: Text)
+        -- liftIO $ print ("Created directory" :: Text)
+        -- ls <- listDirectory "public"
+        -- liftIO $ do
+        --     print ("List Directory" :: Text)
+        --     mapM_ print ls
         liftIO $ print ("Putting a file." :: Text)
         _ <- putFile "/tmp/test.txt" "public/test2/test.txt"
-        ls <- listDirectory "public"
+        ls <- listDirectory "public/test2"
         liftIO $ do
             print ("List Directory" :: Text)
             mapM_ print ls
