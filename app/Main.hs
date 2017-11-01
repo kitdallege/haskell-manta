@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.Catch (catch)
+-- import           Control.Monad.Catch (catch)
 import           Manta
 import           Protolude hiding (catch)
 
@@ -24,7 +24,7 @@ main = do
         --                                                 putStr err
         --                                                 return ())
         -- liftIO $ print ("Created directory" :: Text)
-        -- ls <- listDirectory "public"
+
         -- liftIO $ do
         --     print ("List Directory" :: Text)
         --     mapM_ print ls
@@ -38,5 +38,11 @@ main = do
         liftIO $ do
             print ("Contents of \"public/test2/test.txt\"" :: Text)
             print contents
+        void $ putMetadata "public/test2/test.txt" [("m-testing", "true")]
+        ls' <- listDirectory "public/test2"
+        void $ putSnapLink "public/test2/test3.txt" "public/test2/test2.txt"
+        liftIO $ do
+            print ("List Directory" :: Text)
+            mapM_ print ls'
         return ()
     return ()

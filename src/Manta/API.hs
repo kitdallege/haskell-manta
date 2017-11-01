@@ -4,13 +4,19 @@
 module Manta.API
   ( defEnv
   , showConfig
+  -- Directories
   , listDirectory
   , listDirectoryRaw
   , putDirectory
   , deleteDirectory
+  -- Objects
   , getFile
   , getFileRaw
   , putFile
+  , putMetadata
+  , deleteFile
+  -- Snaplinks
+  , putSnapLink
   -- *Debugging
   , logHttpConnection
   ) where
@@ -140,6 +146,46 @@ putFile localPath mantaPath  = do
     resp <- _performRequest req''
     checkStatus resp 204
     return ()
+
+putMetadata :: (MonadIO m,  MonadCatch m, MonadLogger m) =>
+            FilePath -> HT.RequestHeaders -> MantaClientT m ()
+putMetadata mantaPath headers = do
+    $(logDebug) ("PutMetadata: " <> show mantaPath)
+    req <- _mkRequest mantaPath
+    let headers' = [(HT.hContentType, "application/json")] <> headers
+        req' = addHeaders (req {HC.method=HT.methodPut}) headers'
+    resp <- _performRequest req'
+    checkStatus resp 204
+    return ()
+
+deleteFile :: (MonadIO m,  MonadCatch m, MonadLogger m) =>
+            FilePath -> MantaClientT m ()
+deleteFile mantaPath = do
+    $(logDebug) ("DeleteObject: " <> show mantaPath)
+    req <- (\r->r{HC.method=HT.methodDelete}) <$> _mkRequest mantaPath
+    resp <- _performRequest req
+    checkStatus resp 204
+    return ()
+
+
+-- Snaplinks
+putSnapLink :: (MonadIO m,  MonadCatch m, MonadLogger m) =>
+            FilePath -> FilePath -> MantaClientT m ()
+putSnapLink toPath fromPath = do
+    env <- ask
+    let acct = msAccount env
+        fromPath' = "/" <> acct <> "/" <> toS fromPath
+    $(logDebug) ("putSnapLink: " <> show toPath <> " -> " <> show fromPath')
+    req <- (\r->r{HC.method=HT.methodPut}) <$> _mkRequest toPath
+    let req' = addHeaders req [
+                  (HT.hContentType, "application/json; type=link")
+                , (HT.hLocation, toS fromPath')
+                ]
+    resp <- _performRequest req'
+    checkStatus resp 204
+    return ()
+
+-- Jobs
 
 
 -- Utils
