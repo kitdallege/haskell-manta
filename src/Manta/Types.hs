@@ -32,7 +32,7 @@ import           Network.HTTP.Client         (Manager)
 import           Protolude
 
 newtype MantaClientT m a = MantaClientT {
-  unMantaClientT :: ReaderT MantaEnv m a
+    unMantaClientT :: ReaderT MantaEnv m a
 } deriving ( Functor
            , Applicative
            , Alternative
@@ -44,48 +44,66 @@ newtype MantaClientT m a = MantaClientT {
            , MonadThrow
            , MonadCatch)
 
-runMantaClientT :: (MonadIO m, MonadLogger m, MonadBaseControl IO m) => MantaEnv -> MantaClientT m a -> m a
+runMantaClientT :: (MonadIO m, MonadLogger m, MonadBaseControl IO m) =>
+                    MantaEnv -> MantaClientT m a -> m a
 runMantaClientT conf action = runReaderT (unMantaClientT action) conf
 
-runMantaClientNoLogging :: (MonadIO m) => MantaEnv -> MantaClientT (NoLoggingT IO) a -> m a
+runMantaClientNoLogging :: (MonadIO m) =>
+                            MantaEnv -> MantaClientT (NoLoggingT IO) a -> m a
 runMantaClientNoLogging conf action = liftIO $ runNoLoggingT $ runMantaClientT conf action
 
-runMantaClientStderrLogging :: (MonadIO m) => MantaEnv -> MantaClientT (LoggingT IO) a -> m a
+runMantaClientStderrLogging :: (MonadIO m) =>
+                                MantaEnv -> MantaClientT (LoggingT IO) a -> m a
 runMantaClientStderrLogging conf action = liftIO $ runStderrLoggingT $ runMantaClientT conf action
 
-runMantaClientStdoutLogging :: (MonadIO m) => MantaEnv -> MantaClientT (LoggingT IO) a -> m a
+runMantaClientStdoutLogging :: (MonadIO m) =>
+                                MantaEnv -> MantaClientT (LoggingT IO) a -> m a
 runMantaClientStdoutLogging conf action = liftIO $ runStdoutLoggingT $ runMantaClientT conf action
 
+--------------------------------------------------------------------
+--TODO: Abstract over the HTTP backend eg: typeclass it.
+-- mostly for testing, but also provides a nice separation of concerns
+--------------------------------------------------------------------
+
+-- TODO: lens for field accessors..
 data MantaEnv = MantaEnv
-  { msUrl     :: !Text
-  , msAccount :: !Text
-  , msKey     :: !Text
-  , msManager :: Manager
-  , msSigner  :: MantaSigner
-  }
+    { msUrl     :: !Text
+    , msAccount :: !Text
+    , msKey     :: !Text
+    , msManager :: Manager
+    , msSigner  :: MantaSigner
+    }
 
 instance Show MantaEnv where
-  show s = "MantaEnv { msUrl = " ++ show (msUrl s) ++ ", msAccount = " ++ show (msAccount s) ++ " }"
+    show s = "MantaEnv { msUrl = " ++ show (msUrl s) ++ ", msAccount = " ++ show (msAccount s) ++ " }"
 
+-- TODO: Nicer story for the objects you work with. lens would be nice
+-- so that ya can take a list returned by listDirectory [MantaEntity]
+-- and partition it out based on a 'type' field which is a sumtype
+-- MantaEntityType = Object | Directory | SnapLink
+-- MantaEntity
 data FileMetadata = FileMetadata
-  { fmName       :: !Text
-  , fmType       :: !Text
-  , fmMTime      :: !Text
-  , fmDurability :: Maybe Integer
-  } deriving (Show)
+    { fmName       :: !Text
+    , fmType       :: !Text
+    , fmMTime      :: !Text
+    , fmDurability :: Maybe Integer
+    -- extraAttributes :: Map Text Value ? either Value or we go Text
+    } deriving (Show)
 
 instance FromJSON FileMetadata where
-  parseJSON (Object v) = FileMetadata <$>
-                         v .:  "name" <*>
-                         v .:  "type" <*>
-                         v .:  "mtime" <*>
-                         v .:? "durability"
-  parseJSON _          = mzero
+    parseJSON (Object v) = FileMetadata <$>
+                            v .:  "name" <*>
+                            v .:  "type" <*>
+                            v .:  "mtime" <*>
+                            v .:? "durability"
+    parseJSON _          = mzero
 
 
 data MantaSignerType =
-    MantaSignerTypePrivate
-  | MantaSignerTypeAgent
+      MantaSignerTypePrivate
+    | MantaSignerTypeAgent
+    | MantaSignerTypeCustom
+    deriving (Show)
 
 data MantaSigner = MantaSigner
     { mantaSignerType           :: MantaSignerType
@@ -93,25 +111,6 @@ data MantaSigner = MantaSigner
     , mantaSignerFingerprint    :: Text
     , mantaSignerSigner         :: ByteString -> ByteString
     }
-
-
--- data PrivateKeySigner = PrivateKeySigner
---     { privateKeySignerAlgorithm   :: Text -- RSA.HashInfo
---     , privateKeySignerFingerprint :: Text
---     , privateKeySignerSigner      :: ByteString -> ByteString
---     }
---
--- instance MantaSigner PrivateKeySigner where
---     sign = privateKeySignerSigner
---     fingerprint = privateKeySignerFingerprint
---
--- data AgentKeySigner = AgentKeySigner
---     { agentKeySignerAlgorithm   :: Text -- RSA.HashInfo
---     , agentKeySignerFingerprint :: Text
---     , agentKeySignerSigner      :: ByteString -> ByteString
---     }
---
--- type Signer = Text -> Bool
 
 data MantaAPIError
     = AuthSchemeError Text

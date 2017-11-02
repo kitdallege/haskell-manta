@@ -20,33 +20,32 @@ module Manta.API
   -- *Debugging
   , logHttpConnection
   ) where
-import           Control.Monad.Catch        (MonadThrow, throwM, MonadCatch)
-import           Control.Monad.Logger       (MonadLogger, logDebug)
-import           Data.Aeson                 (decode)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Base64.Lazy as BSL64
-import           Data.ByteString.Lazy.Char8 (lines)
-import qualified Network.Mime as Mime
-import qualified Network.HTTP.Types as HT
-import qualified Network.HTTP.Client as HC
-import Network.HTTP.Client.Internal (connectionWrite, mTlsConnection)
-import           Network.HTTP.Client.TLS    (tlsManagerSettings)
-import           Protolude
-import           System.Environment         (lookupEnv)
-import           Manta.Types
+import           Control.Monad.Catch          (MonadCatch, MonadThrow, throwM)
+import           Control.Monad.Logger         (MonadLogger, logDebug)
+import           Data.Aeson                   (decode)
+import qualified Data.ByteString              as BS
+import qualified Data.ByteString.Base64.Lazy  as BSL64
+import qualified Data.ByteString.Lazy         as BSL
+import           Data.ByteString.Lazy.Char8   (lines)
+import           Data.Version                 (showVersion)
 import           Manta.Auth
+import           Manta.Types
+import qualified Network.HTTP.Client          as HC
+import           Network.HTTP.Client.Internal (connectionWrite, mTlsConnection)
+import           Network.HTTP.Client.TLS      (tlsManagerSettings)
+import qualified Network.HTTP.Types           as HT
+import qualified Network.Mime                 as Mime
 import qualified Paths_manta_client
-import Data.Version (showVersion)
+import           Protolude
+import           System.Environment           (lookupEnv)
 import qualified System.Info
--- import qualified System.Posix.Files as Files
-import qualified System.FilePath.Posix as FilePath
-import qualified Data.Digest.Pure.MD5 as MD5
-import Data.Time.Clock (getCurrentTime)
-import Data.Time.Format (formatTime, defaultTimeLocale)
+import qualified Data.Digest.Pure.MD5         as MD5
+import           Data.Time.Clock              (getCurrentTime)
+import           Data.Time.Format             (defaultTimeLocale, formatTime)
+import qualified System.FilePath.Posix        as FilePath
 
 defUserAgent :: ByteString
-defUserAgent = strConv Strict $ "haskell-manta/" <>
+defUserAgent = toS $ "haskell-manta/" <>
     showVersion Paths_manta_client.version <> " (" <>
     System.Info.os <> " " <> System.Info.arch <>
     ") " <> System.Info.compilerName <> "-" <>
@@ -58,24 +57,14 @@ defEnv = do
   user <- liftIO $ lookupEnv "MANTA_USER"
   url <-  liftIO $ lookupEnv "MANTA_URL"
   key <-  liftIO $ lookupEnv "MANTA_KEY_ID"
-  defSigner <- liftIO $ mkPrivateKeySigner (strConv Strict (fromMaybe mempty key))
+  defSigner <- liftIO $ mkPrivateKeySigner (toS (fromMaybe mempty key))
   return MantaEnv
-    { msUrl = strConv Strict $ fromMaybe mempty url
-    , msAccount = strConv Strict $ fromMaybe mempty user
-    , msKey = strConv Strict $ fromMaybe mempty key
+    { msUrl = toS $ fromMaybe mempty url
+    , msAccount = toS $ fromMaybe mempty user
+    , msKey = toS $ fromMaybe mempty key
     , msManager = mgr
     , msSigner = defSigner
     }
-
-logHttpConnection :: HC.Manager -> HC.Manager
-logHttpConnection mgr = mgr {mTlsConnection = \ha h p -> do
-                connOrig <- mTlsConnection mgr ha h p
-                return connOrig {connectionWrite = \bs -> do
-                    BS.appendFile "/tmp/manta-client.log" bs
-                    connectionWrite connOrig bs}}
-
-showConfig :: MonadIO m => MantaClientT m ()
-showConfig = ask >>= liftIO . print
 
 -- Directories
 listDirectoryRaw :: (MonadIO m, MonadCatch m, MonadLogger m) =>
@@ -118,7 +107,7 @@ getFileRaw path = do
   $(logDebug) ("GetObject: " <> show path)
   resp <- _request path
   checkStatus resp 200
-  return (resp, strConv Strict $ HC.responseBody resp)
+  return (resp, toS $ HC.responseBody resp)
 
 getFile :: (MonadIO m,  MonadCatch m, MonadLogger m) =>
             FilePath -> MantaClientT m ByteString
@@ -145,7 +134,6 @@ putFile localPath mantaPath  = do
             ]
     resp <- _performRequest req''
     checkStatus resp 204
-    return ()
 
 putMetadata :: (MonadIO m,  MonadCatch m, MonadLogger m) =>
             FilePath -> HT.RequestHeaders -> MantaClientT m ()
@@ -156,7 +144,6 @@ putMetadata mantaPath headers = do
         req' = addHeaders (req {HC.method=HT.methodPut}) headers'
     resp <- _performRequest req'
     checkStatus resp 204
-    return ()
 
 deleteFile :: (MonadIO m,  MonadCatch m, MonadLogger m) =>
             FilePath -> MantaClientT m ()
@@ -165,7 +152,6 @@ deleteFile mantaPath = do
     req <- (\r->r{HC.method=HT.methodDelete}) <$> _mkRequest mantaPath
     resp <- _performRequest req
     checkStatus resp 204
-    return ()
 
 
 -- Snaplinks
@@ -195,14 +181,14 @@ _mkRequest path = do
     env <- ask
     let url = msUrl env
         acct = msAccount env
-        uri = url <> "/" <> acct <> "/" <>  strConv Strict path
-    req <- liftIO $ HC.parseRequest (strConv Strict uri)
+        uri = url <> "/" <> acct <> "/" <>  toS path
+    req <- liftIO $ HC.parseRequest (toS uri)
     now <- liftIO $ do
         ct <- getCurrentTime
-        let fmtString = "%a, %d %b %Y %H:%M:%S GMT"
+        let fmtString = "%a, %d %b %Y %H:%M:%S %Z"
             -- "%a, %d %b %Y %H:%M:%S GMT" ? python hardcodes GMT
             fmtTime = formatTime defaultTimeLocale fmtString ct
-        return $ strConv Strict fmtTime
+        return $ toS fmtTime
     signRequest ("date: " <> now) $ req {HC.requestHeaders=[
           (HT.hDate, now)
         , (HT.hUserAgent, defUserAgent)
@@ -210,15 +196,6 @@ _mkRequest path = do
         ],
         HC.redirectCount=0}
 
-{-
-headers: {
-    'accept-encoding': 'gzip, deflate',
-    'authorization': 'Signature keyId="/greenspun/keys/18:aa:10:bb:5b:b0:4d:7f:b8:7a:1c:73:8e:05:16:6f",algorithm="rsa-sha1",signature="N0TM6xeVzviUk0GNyA/nVt6/11ZpXYBN7uY6XURSknCQRLbg4+BY9xlyK19aAk71hOQ63Y81wgd+CTa3xIKO2QbyF/ILST5T9/STeq76nTvweAK1cXb4v3r6yK315XFg/B9R8qHNQuomrXDfvYVVH8IuzNrmyzxYDoVydT8jv1w+IqIEmeJIKLSiDHKv50Bd6Zi3JIHKRGLlki4wwQYn0DBSFXxozf2e4H/gF2P/eC4m8zyS7GUcLU4T3aeYj8g9yVXdGd3EiV6GTKrBD2eTf8VkPBHaELPFwWHOiukw7k/XWmSOVLm4Sl4HsPPxWR4VRtwBe4WKiUBngm4/DzJqSg=="',
-    'date': 'Tue, 31 Oct 2017 16:27:03 GMT',
-    'user-agent': 'python-manta/2.6.0 (linux2) Python/2.7.3'
-}
-
--}
 _performRequest :: (MonadIO m, MonadLogger m) =>
                     HC.Request -> MantaClientT m (HC.Response LByteString)
 _performRequest req = do
@@ -243,7 +220,7 @@ addHeaders req headers = let
 signRequest :: (MonadIO m, MonadLogger m) =>
                 ByteString -> HC.Request -> MantaClientT m HC.Request
 signRequest signstr req = do
-    $(logDebug) $ strConv Strict ("sign '" <> signstr <> "'")
+    $(logDebug) $ toS ("sign '" <> signstr <> "'")
     env <- ask
     let account = msAccount env
         signer = msSigner env
@@ -251,14 +228,14 @@ signRequest signstr req = do
         algorithm = mantaSignerAlgorithm signer
         sign = mantaSignerSigner signer
         signature = sign signstr
-        auth = strConv Strict $ "Signature keyId=\"/" <>
+        auth = toS $ "Signature keyId=\"/" <>
             account <> "/keys/" <>
             fingerprint <> "\",algorithm=\"" <>
             algorithm <> "\",signature=\"" <>
-            strConv Lenient signature <> "\""
+            toSL signature <> "\""
         req' = addHeaders req [(HT.hAuthorization, auth)]
-    $(logDebug) $ strConv Strict ("signature: '" <> signature <> "'")
-    $(logDebug) $ strConv Strict ("auth: '" <> auth <> "'")
+    $(logDebug) $ toS ("signature: '" <> signature <> "'")
+    $(logDebug) $ toS ("auth: '" <> auth <> "'")
     return req'
 
 checkStatus :: (MonadCatch m, MonadIO m) =>
@@ -274,108 +251,15 @@ throwManta resp = do
             putStr (HC.responseBody resp)
             throwM $ OtherMantaError (
                 "Response code of " <> show (HT.statusCode . HC.responseStatus $ resp) <>
-                " body is not JSON parseable: " <> strConv Strict (HC.responseBody resp))
+                " body is not JSON parseable: " <> toS (HC.responseBody resp))
         Just err -> liftIO $ throwM err
-{-
-if self.signer:
-    # Signature auth.
-    if "Date" not in headers:
-        headers["Date"] = http_date()
-    sigstr = 'date: ' + headers["Date"]
-    algorithm, fingerprint, signature = self.signer.sign(sigstr)
-    auth = 'Signature keyId="/%s/keys/%s",algorithm="%s",signature="%s"'\
-           % ('/'.join(filter(None, [self.account, self.subuser])),
-              fingerprint, algorithm, signature)
-    headers["Authorization"] = auth
--}
 
-{-
-putObject
- * should set headers
-  ** x-durability-level
-  ** Content-Length
-  ** Content-MD5 : base64encode+md5 digest
+logHttpConnection :: HC.Manager -> HC.Manager
+logHttpConnection mgr = mgr {mTlsConnection = \ha h p -> do
+                connOrig <- mTlsConnection mgr ha h p
+                return connOrig {connectionWrite = \bs -> do
+                    BS.appendFile "/tmp/manta-client.log" bs
+                    connectionWrite connOrig bs}}
 
-
-Java Client API:
-delete
-deleteRecursive
-get
-head
-listObjects
-put
-putDirectory
-pubSnapLink
-
-js client api:
-chattr
-get
-createReadStream
-ftw 'find'
-info
-ln
-ls
-mkdir
-mkdirp
-put
-createWriteStream
-rmr
-unlink
-createJob
-job
-listJobs/jobs
-addJobKey
-cancelJob
-endJob
-jobInput
-jobOutput
-jobFailures
-jobErrors
-jobShare
-signURL
-
-py client api:
-get
-put
-rm
-ln
-walk
-ls
-mkdir
-mkdirp
-stat
-type
-get_job
-get_job_input
-get_job_output
-get_job_failures
-get_job_errors
-
-put_directory
-list_directory
-list_directory2
-head_directory
-delete_directory
-put_object
-get_object
-get_object2
-delete_object
-put_snaplink
-create_job
-add_job_inputs
-end_job_input
-cancel_job
-list_jobs
-get_job
-get_job_output
-get_job_input
-get_job_failures
-get_job_errors
-
-
-Ideally I able to provide both the raw 'filesystem' api
-and a more 'idealized' graph api which hides the
-implementation details of the raw api behind a more
-semantic (get, put, del)? api
-
---}
+showConfig :: MonadIO m => MantaClientT m ()
+showConfig = ask >>= liftIO . print

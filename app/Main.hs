@@ -6,7 +6,6 @@ import           Control.Monad.IO.Class (liftIO)
 import           Manta
 import           Protolude hiding (catch)
 
-
 main :: IO ()
 main = do
     print ("Hello Manta!" :: Text)
@@ -29,20 +28,17 @@ main = do
         --     print ("List Directory" :: Text)
         --     mapM_ print ls
         liftIO $ print ("Putting a file." :: Text)
-        _ <- putFile "/tmp/test.txt" "public/test2/test.txt"
-        ls <- listDirectory "public/test2"
-        liftIO $ do
+        void $ putFile "/tmp/test.txt" "public/test2/test.txt"
+        ls "public/test2" >>= \dir -> liftIO $ do
             print ("List Directory" :: Text)
-            mapM_ print ls
-        contents <- getFile "public/test2/test.txt"
-        liftIO $ do
+            mapM_ print dir
+        getFile "public/test2/test.txt" >>= \contents -> liftIO $ do
             print ("Contents of \"public/test2/test.txt\"" :: Text)
             print contents
         void $ putMetadata "public/test2/test.txt" [("m-testing", "true")]
-        ls' <- listDirectory "public/test2"
         void $ putSnapLink "public/test2/test3.txt" "public/test2/test2.txt"
-        liftIO $ do
+        ls "public/test2" >>= \dir -> liftIO $ do
             print ("List Directory" :: Text)
-            mapM_ print ls'
+            mapM_ print dir
         return ()
     return ()

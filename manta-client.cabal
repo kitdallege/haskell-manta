@@ -49,11 +49,11 @@ library
     , text
     , time
     , transformers
-    , unix
   exposed-modules:
       Manta
       Manta.API
       Manta.Auth
+      Manta.Client
       Manta.Types
   other-modules:
       Paths_manta_client
