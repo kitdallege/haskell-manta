@@ -122,7 +122,6 @@ putFile localPath mantaPath  = do
     $(logDebug) ("PutObject: " <> show mantaPath)
     req <- _mkRequest mantaPath
     fileContents <- liftIO $ BSL.readFile localPath
-    liftIO $ print fileContents
     let ctype = Mime.defaultMimeLookup (toS (FilePath.takeFileName localPath))
         checksum = BSL64.encode . toS . MD5.md5DigestBytes . MD5.md5 $ fileContents
         req'  =  req {HC.method=HT.methodPut
@@ -201,7 +200,6 @@ _performRequest :: (MonadIO m, MonadLogger m) =>
 _performRequest req = do
     env <- ask
     $(logDebug) (show req)
-    liftIO $ mapM_ print (HC.requestHeaders req)
     resp <- liftIO $ HC.httpLbs req (msManager env)
     $(logDebug) (show resp)
     return resp
