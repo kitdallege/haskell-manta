@@ -18,7 +18,7 @@ import Manta.API
 type MonadManta m = (MonadIO m, MonadCatch m, MonadLogger m)
 
 
-ls :: MonadManta m => FilePath -> MantaClientT m [FileMetadata]
+ls :: MonadManta m => FilePath -> MantaClientT m [MantaEntity]
 ls = listDirectory
 
 ln :: MonadManta m => FilePath -> FilePath -> MantaClientT m ()

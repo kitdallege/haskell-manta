@@ -29,6 +29,8 @@ library:
   - http-types
   - monad-control
   - monad-logger
+  - microlens
+  - microlens-th
   - mime-types
   - mtl
   - protolude

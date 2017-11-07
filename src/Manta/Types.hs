@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 module Manta.Types
   ( MantaClientT
@@ -13,22 +14,24 @@ module Manta.Types
   , runMantaClientStdoutLogging
   , runMantaClientNoLogging
   , MantaEnv(..)
-  , FileMetadata(..)
+  , MantaEntity(..)
+  , MantaEntityType(..)
+  , defaultMantaEntity
   , MantaAPIError(..)
   , MantaSigner (..)
   , MantaSignerType (..)
   ) where
+import           Control.Monad.Catch         (MonadCatch, MonadThrow)
 import           Control.Monad.Logger        (LoggingT, MonadLogger,
                                               NoLoggingT (..),
                                               runStderrLoggingT,
                                               runStdoutLoggingT)
-import           Control.Monad.Catch        (MonadThrow, MonadCatch)
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Control.Monad.Trans.Control (MonadBaseControl)
-import           Data.Aeson                  (FromJSON (..), Value (..),
-                                              withObject, (.:), (.:?))
+import           Data.Aeson                  (FromJSON (..), withObject, (.:),
+                                              (.:?), Value(..))
 import qualified GHC.Show
-import           Network.HTTP.Client         (Manager)
+import           Network.HTTP.Client         (Manager, HasHttpManager(..))
 import           Protolude
 
 newtype MantaClientT m a = MantaClientT {
@@ -74,6 +77,9 @@ data MantaEnv = MantaEnv
     , msSigner  :: MantaSigner
     }
 
+instance HasHttpManager MantaEnv where
+    getHttpManager = msManager
+
 instance Show MantaEnv where
     show s = "MantaEnv { msUrl = " ++ show (msUrl s) ++ ", msAccount = " ++ show (msAccount s) ++ " }"
 
@@ -82,22 +88,40 @@ instance Show MantaEnv where
 -- and partition it out based on a 'type' field which is a sumtype
 -- MantaEntityType = Object | Directory | SnapLink
 -- MantaEntity
-data FileMetadata = FileMetadata
-    { fmName       :: !Text
-    , fmType       :: !Text
-    , fmMTime      :: !Text
-    , fmDurability :: Maybe Integer
+data MantaEntityType =
+      MantaObject
+    | MantaDirectory
+    | MantaSnapLink
+    | MantaUnknown
+    deriving (Show, Eq, Enum)
+
+instance FromJSON MantaEntityType where
+    parseJSON (String s) = return $ case s of
+            "object" -> MantaObject
+            "directory" -> MantaDirectory
+            "link" -> MantaSnapLink
+            _ -> MantaUnknown
+    parseJSON _ = empty
+
+data MantaEntity = MantaEntity
+    { mantaEntityName       :: !Text
+    , mantaEntityEntityType :: !MantaEntityType
+    , mantaEntityTime       :: !Text
+    , mantaEntityDurability :: Maybe Integer
     -- extraAttributes :: Map Text Value ? either Value or we go Text
     } deriving (Show)
 
-instance FromJSON FileMetadata where
-    parseJSON (Object v) = FileMetadata <$>
-                            v .:  "name" <*>
-                            v .:  "type" <*>
-                            v .:  "mtime" <*>
-                            v .:? "durability"
-    parseJSON _          = mzero
+defaultMantaEntity :: MantaEntity
+defaultMantaEntity = MantaEntity mempty MantaUnknown mempty Nothing
 
+instance FromJSON MantaEntity where
+    parseJSON = withObject "MantaEntity" $ \o -> do
+        mantaEntityName         <- o .:  "name"
+        entityTypeTxt           <- o .:  "type"
+        mantaEntityEntityType <- parseJSON entityTypeTxt
+        mantaEntityTime         <- o .:  "mtime"
+        mantaEntityDurability   <- o .:? "durability"
+        return MantaEntity{..}
 
 data MantaSignerType =
       MantaSignerTypePrivate
@@ -106,10 +130,10 @@ data MantaSignerType =
     deriving (Show)
 
 data MantaSigner = MantaSigner
-    { mantaSignerType           :: MantaSignerType
-    , mantaSignerAlgorithm      :: Text -- RSA.HashInfo
-    , mantaSignerFingerprint    :: Text
-    , mantaSignerSigner         :: ByteString -> ByteString
+    { mantaSignerType        :: MantaSignerType
+    , mantaSignerAlgorithm   :: Text -- RSA.HashInfo
+    , mantaSignerFingerprint :: Text
+    , mantaSignerSigner      :: ByteString -> ByteString
     }
 
 data MantaAPIError

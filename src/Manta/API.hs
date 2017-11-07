@@ -69,7 +69,7 @@ defEnv = do
 -- Directories
 listDirectoryRaw :: (MonadIO m, MonadCatch m, MonadLogger m) =>
                 FilePath ->
-                MantaClientT m (HC.Response LByteString, [FileMetadata])
+                MantaClientT m (HC.Response LByteString, [MantaEntity])
 listDirectoryRaw path = do
     $(logDebug) ("List Diretory: " <> show path)
     resp <- _request path
@@ -77,7 +77,7 @@ listDirectoryRaw path = do
     return (resp, catMaybes . mapMaybe decode . lines $ HC.responseBody resp)
 
 listDirectory :: (MonadIO m, MonadCatch m, MonadLogger m) =>
-                FilePath -> MantaClientT m [FileMetadata]
+                FilePath -> MantaClientT m [MantaEntity]
 listDirectory path = do
   (_, results) <- listDirectoryRaw path
   return results
@@ -135,7 +135,7 @@ putFile localPath mantaPath  = do
     checkStatus resp 204
 
 putMetadata :: (MonadIO m,  MonadCatch m, MonadLogger m) =>
-            FilePath -> HT.RequestHeaders -> MantaClientT m ()
+                FilePath -> HT.RequestHeaders -> MantaClientT m ()
 putMetadata mantaPath headers = do
     $(logDebug) ("PutMetadata: " <> show mantaPath)
     req <- _mkRequest mantaPath
@@ -145,7 +145,7 @@ putMetadata mantaPath headers = do
     checkStatus resp 204
 
 deleteFile :: (MonadIO m,  MonadCatch m, MonadLogger m) =>
-            FilePath -> MantaClientT m ()
+                FilePath -> MantaClientT m ()
 deleteFile mantaPath = do
     $(logDebug) ("DeleteObject: " <> show mantaPath)
     req <- (\r->r{HC.method=HT.methodDelete}) <$> _mkRequest mantaPath
@@ -155,7 +155,7 @@ deleteFile mantaPath = do
 
 -- Snaplinks
 putSnapLink :: (MonadIO m,  MonadCatch m, MonadLogger m) =>
-            FilePath -> FilePath -> MantaClientT m ()
+                FilePath -> FilePath -> MantaClientT m ()
 putSnapLink toPath fromPath = do
     env <- ask
     let acct = msAccount env
@@ -200,7 +200,7 @@ _performRequest :: (MonadIO m, MonadLogger m) =>
 _performRequest req = do
     env <- ask
     $(logDebug) (show req)
-    resp <- liftIO $ HC.httpLbs req (msManager env)
+    resp <- liftIO $ HC.httpLbs req (HC.getHttpManager env)
     $(logDebug) (show resp)
     return resp
 

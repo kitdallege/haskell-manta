@@ -6,6 +6,10 @@ import           Control.Monad.IO.Class (liftIO)
 import           Manta
 import           Protolude hiding (catch)
 
+{--
+Would be sweet to have a webbased file browser for manta.
+https://github.com/ABASystems/react-keyed-file-browser
+--}
 main :: IO ()
 main = do
     print ("Hello Manta!" :: Text)

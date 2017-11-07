@@ -42,6 +42,8 @@ library
     , http-types
     , monad-control
     , monad-logger
+    , microlens
+    , microlens-th
     , mime-types
     , mtl
     , protolude
@@ -54,6 +56,8 @@ library
       Manta.API
       Manta.Auth
       Manta.Client
+      Manta.Internal.Lens
+      Manta.Lens
       Manta.Types
   other-modules:
       Paths_manta_client
