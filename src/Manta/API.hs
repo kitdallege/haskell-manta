@@ -101,6 +101,8 @@ deleteDirectory  path = do
     checkStatus resp 204
 
 -- Files
+--TODO: Either wrap an API like Http.RequestBody or provide methods for each
+-- use-case (like putStream getStream putLbs etc.)
 getFileRaw :: (MonadIO m,  MonadCatch m,  MonadLogger m) =>
                 FilePath -> MantaClientT m (HC.Response LByteString, ByteString)
 getFileRaw path = do

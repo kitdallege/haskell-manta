@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards            #-}
 
 module Manta.Types
@@ -29,7 +30,7 @@ import           Control.Monad.Logger        (LoggingT, MonadLogger,
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Data.Aeson                  (FromJSON (..), withObject, (.:),
-                                              (.:?), Value(..))
+                                              (.:?), withText)
 import qualified GHC.Show
 import           Network.HTTP.Client         (Manager, HasHttpManager(..))
 import           Protolude
@@ -96,12 +97,11 @@ data MantaEntityType =
     deriving (Show, Eq, Enum)
 
 instance FromJSON MantaEntityType where
-    parseJSON (String s) = return $ case s of
-            "object" -> MantaObject
+    parseJSON = withText "MantaEntityType" $ return . \case
+            "object"    ->  MantaObject
             "directory" -> MantaDirectory
-            "link" -> MantaSnapLink
-            _ -> MantaUnknown
-    parseJSON _ = empty
+            "link"      -> MantaSnapLink
+            _           -> MantaUnknown
 
 data MantaEntity = MantaEntity
     { mantaEntityName       :: !Text
